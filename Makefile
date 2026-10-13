@@ -4,7 +4,7 @@ CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra
 
 # выбор UI: файл реализации и библиотеки
 ifeq ($(UI),tui)
-  LDLIBS := -lncurses
+  LDLIBS := -lncursesw
 else ifeq ($(UI),gl)
   LDLIBS := -lglfw -lGL
 else

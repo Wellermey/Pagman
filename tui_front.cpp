@@ -7,8 +7,10 @@
 #define MY_RED 30
 #define MY_PACMAN 31
 #define MY_EMPTY 32
+#define MY_MEAT 33
 
 Frontend::Frontend() {
+  setlocale(LC_ALL, "");
   initscr();
   curs_set(0);
   noecho();
@@ -22,6 +24,8 @@ Frontend::Frontend() {
   init_pair(2, MY_EMPTY, MY_EMPTY);
   init_color(MY_PACMAN, 1000, 716, 540);
   init_pair(3, MY_PACMAN, MY_EMPTY);
+  init_color(MY_MEAT, 706, 745, 996);
+  init_pair(4, MY_MEAT, MY_EMPTY);
 }
 std::optional<Command> Frontend::Input() {
   int ch = getch();
@@ -45,6 +49,7 @@ void Frontend::render(const State &state) {
   erase();
 
   int i = 0, j = 0;
+  int len = 0;
   while (state.map[i][j] != 'e') {
     switch (state.map[i][j]) {
     case '*':
@@ -62,17 +67,30 @@ void Frontend::render(const State &state) {
       attroff(COLOR_PAIR(2));
       j++;
       break;
+    case 'm':
+      attron(COLOR_PAIR(4));
+      addstr("• ");
+      attroff(COLOR_PAIR(4));
+      j++;
+      break;
     case '\n':
       addch('\n');
       i++;
+      len = 2 * j;
       j = 0;
       break;
     }
   }
-
+  // pagman
   attron(COLOR_PAIR(3));
   mvaddch(lround(state.pag_cord.i), 2 * lround(state.pag_cord.j), '(');
   mvaddch(lround(state.pag_cord.i), 2 * lround(state.pag_cord.j) + 1, ')');
   attroff(COLOR_PAIR(3));
+  // score
+  attron(COLOR_PAIR(4));
+  mvprintw(0, len, "Score: %i", state.score);
+  attroff(COLOR_PAIR(4));
+
+  refresh();
 }
 Frontend::~Frontend() { endwin(); }

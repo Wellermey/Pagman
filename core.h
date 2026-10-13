@@ -23,6 +23,7 @@ struct State {
   Point curr_route;
   Point next_route;
   bool running;
+  int score;
 };
 
 enum class Command { Quit, Up, Down, Left, Right };
@@ -32,6 +33,12 @@ private:
   State state;
   bool wall(int i, int j) {
     return state.map[i][j] == '*' || state.map[i][j] == '1';
+  }
+  void eat(int i, int j) {
+    if (state.map[i][j] == 'm') {
+      state.score++;
+      state.map[i][j] = '0';
+    }
   }
 
 public:
@@ -47,6 +54,9 @@ public:
           state.map[i][j] = ch;
           i++;
           j = 0;
+        } else if (ch == '0') {
+          state.map[i][j] = 'm';
+          j++;
         } else {
           state.map[i][j] = ch;
           j++;
@@ -59,6 +69,7 @@ public:
     state.curr_route = {1, 0};
     state.next_route = {1, 0};
     state.running = true;
+    state.score = 0;
   };
   void handle(Command command) {
     switch (command) {
@@ -80,8 +91,8 @@ public:
     }
   };
   void update(double dt) {
-    auto &[map_name, map, pag_speed, pag_cord, curr_route, next_route,
-           running] = state;
+    auto &[map_name, map, pag_speed, pag_cord, curr_route, next_route, running,
+           score] = state;
     double rem_distance = pag_speed * dt;
 
     if (next_route.i == -curr_route.i && next_route.j == -curr_route.j) {
@@ -95,7 +106,7 @@ public:
         pag_cord.j = round(pag_cord.j);
         int int_i = lround(pag_cord.i);
         int int_j = lround(pag_cord.j);
-
+        eat(int_i, int_j);
         if (!wall(int_i + next_route.i, int_j + next_route.j))
           curr_route = next_route;
 
