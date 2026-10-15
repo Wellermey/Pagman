@@ -9,22 +9,34 @@ using namespace chrono;
 
 int main() {
 
-  using Clock = steady_clock;
-  auto last = Clock::now();
-
-  Core core("map01.txt");
+  Menu menu;
   Frontend front;
 
-  while (core.running()) {
-    auto now = Clock::now();
-    double dt = duration<double>(now - last).count();
-    last = now;
+  while (menu.running()) {
     auto command = front.Input();
     if (command.has_value())
-      core.handle(*command);
-    core.update(dt);
-    front.render(core.get_state());
-    this_thread::sleep_for(20ms);
+      menu.handle(*command);
+    if (!menu.pagman())
+      front.render(menu.get_state());
+    else {
+      using Clock = steady_clock;
+      auto last = Clock::now();
+
+      Core core(menu.name());
+
+      while (core.running()) {
+        auto now = Clock::now();
+        double dt = duration<double>(now - last).count();
+        last = now;
+        auto command = front.Input();
+        if (command.has_value())
+          core.handle(*command);
+        core.update(dt);
+        front.render(core.get_state());
+        this_thread::sleep_for(20ms);
+      }
+      menu = Menu();
+    }
   }
   return 0;
 }

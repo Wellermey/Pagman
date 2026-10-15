@@ -1,10 +1,15 @@
 #pragma once
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <menu.h>
+#include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #define EPS 1e-9
 
@@ -15,7 +20,13 @@ struct Point {
   double j;
 };
 
-struct State {
+struct State_menu {
+  int selected;
+  int size;
+  vector<string> menu;
+};
+
+struct State_pagman {
   string map_name = "map1.txt";
   char map[1000][1000];
   double pag_speed;
@@ -26,11 +37,91 @@ struct State {
   int score;
 };
 
-enum class Command { Quit, Up, Down, Left, Right };
+enum class Command { Quit, Up, Down, Left, Right, Enter };
+
+class Menu {
+private:
+  State_menu state;
+  bool _running;
+  bool _pagman;
+  int _type;
+  string map_name;
+  vector<string> maps;
+
+  void update() {
+    switch (_type) {
+    case 'i':
+      if (state.selected == 0)
+        _pagman = true;
+      else if (state.selected == 1) {
+        _type = 'm';
+        state.selected = 0;
+        state.menu = {};
+        state.size = maps.size() + 1;
+        for (int i = 1; i <= (int)maps.size(); i++) {
+          state.menu.push_back(to_string(i) + ") " + maps[i - 1]);
+        }
+        state.menu.push_back(to_string(state.size) + ") Back");
+      }
+      if (state.selected == 2)
+        _running = false;
+      break;
+    case 'm':
+      if (state.selected != state.size - 1)
+        map_name = maps[state.selected];
+      state.selected = 0;
+      state.size = 3;
+      state.menu = {"1) Play", "2) Change map", "3) Quit"};
+      _type = 'i';
+      break;
+    }
+  };
+
+public:
+  Menu() {
+    state.selected = 0;
+    state.menu = {"1) Play", "2) Change map", "3) Quit"};
+    state.size = 3;
+    _running = true;
+    _pagman = false;
+    _type = 'i';
+
+    for (const auto &entry : filesystem::directory_iterator(".")) {
+      if (entry.is_regular_file() && entry.path().extension() == ".txt") {
+        maps.push_back(entry.path().filename().string());
+      }
+    }
+    map_name = maps[0];
+  };
+  void handle(Command command) {
+    switch (command) {
+    case Command::Quit:
+      _running = false;
+      break;
+    case Command::Down:
+      state.selected =
+          ((state.selected + 1) % state.size + state.size) % state.size;
+      break;
+    case Command::Up:
+      state.selected =
+          ((state.selected - 1) % state.size + state.size) % state.size;
+      break;
+    case Command::Enter:
+      update();
+      break;
+    default:
+      break;
+    }
+  };
+  bool running() { return _running; };
+  bool pagman() { return _pagman; };
+  const State_menu &get_state() const { return state; };
+  string name() { return map_name; };
+};
 
 class Core {
 private:
-  State state;
+  State_pagman state;
   bool wall(int i, int j) {
     return state.map[i][j] == '*' || state.map[i][j] == '1';
   }
@@ -88,6 +179,8 @@ public:
     case Command::Right:
       state.next_route = {0, 1};
       break;
+    default:
+      break;
     }
   };
   void update(double dt) {
@@ -128,6 +221,6 @@ public:
       rem_distance -= min(rem_distance, fabs(target - last_cord));
     }
   };
-  const State &get_state() const { return state; };
+  const State_pagman &get_state() const { return state; };
   const bool &running() { return state.running; }
 };

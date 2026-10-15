@@ -7,7 +7,7 @@
 #define MY_RED 30
 #define MY_PACMAN 31
 #define MY_EMPTY 32
-#define MY_MEAT 33
+#define MY_TEXT 33
 
 Frontend::Frontend() {
   setlocale(LC_ALL, "");
@@ -20,12 +20,13 @@ Frontend::Frontend() {
 
   init_color(MY_RED, 952, 545, 658);
   init_pair(1, MY_RED, MY_RED);
-  init_color(MY_EMPTY, 117, 117, 180);
+  init_color(MY_EMPTY, 118, 118, 180);
   init_pair(2, MY_EMPTY, MY_EMPTY);
   init_color(MY_PACMAN, 1000, 716, 540);
   init_pair(3, MY_PACMAN, MY_EMPTY);
-  init_color(MY_MEAT, 706, 745, 996);
-  init_pair(4, MY_MEAT, MY_EMPTY);
+  init_color(MY_TEXT, 804, 839, 957);
+  init_pair(4, MY_TEXT, MY_EMPTY);
+  init_pair(5, MY_EMPTY, MY_TEXT);
 }
 std::optional<Command> Frontend::Input() {
   int ch = getch();
@@ -41,13 +42,15 @@ std::optional<Command> Frontend::Input() {
     return Command::Left;
   case KEY_RIGHT:
     return Command::Right;
+  case '\n':
+    return Command::Enter;
   default:
     return std::nullopt;
   }
 }
-void Frontend::render(const State &state) {
+void Frontend::render(const State_pagman &state) {
   erase();
-
+  bkgd(COLOR_PAIR(4));
   int i = 0, j = 0;
   int len = 0;
   while (state.map[i][j] != 'e') {
@@ -93,4 +96,22 @@ void Frontend::render(const State &state) {
 
   refresh();
 }
+void Frontend::render(const State_menu &state) {
+  erase();
+  bkgd(COLOR_PAIR(4));
+  for (int i = 0; i < (int)state.menu.size(); i++) {
+    if (i == state.selected)
+      attron(COLOR_PAIR(5));
+    else
+      attron(COLOR_PAIR(4));
+    mvprintw(2 + 2 * i, 2, "%s", state.menu[i].c_str());
+    if (i == state.selected)
+      attroff(COLOR_PAIR(5));
+    else
+      attroff(COLOR_PAIR(4));
+  }
+
+  refresh();
+}
+
 Frontend::~Frontend() { endwin(); }
