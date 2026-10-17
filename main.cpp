@@ -32,7 +32,7 @@ int main() {
         if (command.has_value())
           core.handle(*command);
         core.update(dt);
-        front.render(core.get_state());
+        front.render(core.get_state_pag(), core.get_state_ghost());
         this_thread::sleep_for(20ms);
       }
       menu = Menu();

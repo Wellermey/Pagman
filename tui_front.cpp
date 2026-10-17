@@ -1,7 +1,11 @@
 #include "core.h"
 #include "front.h"
 #include <cmath>
+#if __has_include(<ncurses.h>)
 #include <ncurses.h>
+#else
+#include <curses.h>
+#endif
 #include <optional>
 
 #define MY_RED 30
@@ -48,13 +52,14 @@ std::optional<Command> Frontend::Input() {
     return std::nullopt;
   }
 }
-void Frontend::render(const State_pagman &state) {
+void Frontend::render(const State_pagman &state_pag,
+                      const State_ghost &state_ghost) {
   erase();
   bkgd(COLOR_PAIR(4));
   int i = 0, j = 0;
   int len = 0;
-  while (state.map[i][j] != 'e') {
-    switch (state.map[i][j]) {
+  while (state_pag.map[i][j] != 'e') {
+    switch (state_pag.map[i][j]) {
     case '*':
     case '1':
       attron(COLOR_PAIR(1));
@@ -86,12 +91,20 @@ void Frontend::render(const State_pagman &state) {
   }
   // pagman
   attron(COLOR_PAIR(3));
-  mvaddch(lround(state.pag_cord.i), 2 * lround(state.pag_cord.j), '(');
-  mvaddch(lround(state.pag_cord.i), 2 * lround(state.pag_cord.j) + 1, ')');
+  mvaddch(lround(state_pag.pag_cord.i), 2 * lround(state_pag.pag_cord.j), '(');
+  mvaddch(lround(state_pag.pag_cord.i), 2 * lround(state_pag.pag_cord.j) + 1,
+          ')');
   attroff(COLOR_PAIR(3));
+  // ghost
+  attron(COLOR_PAIR(4));
+  mvaddch(lround(state_ghost.ghost_cord.i),
+          2 * lround(state_ghost.ghost_cord.j), '/');
+  mvaddch(lround(state_ghost.ghost_cord.i),
+          2 * lround(state_ghost.ghost_cord.j) + 1, '\\');
+  attroff(COLOR_PAIR(4));
   // score
   attron(COLOR_PAIR(4));
-  mvprintw(0, len, "Score: %i", state.score);
+  mvprintw(0, len, "Score: %i", state_pag.score);
   attroff(COLOR_PAIR(4));
 
   refresh();

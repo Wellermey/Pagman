@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
-#include <menu.h>
+#include <queue>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -35,6 +35,12 @@ struct State_pagman {
   Point next_route;
   bool running;
   int score;
+};
+
+struct State_ghost {
+  double ghost_speed;
+  Point ghost_cord;
+  Point ghost_route;
 };
 
 enum class Command { Quit, Up, Down, Left, Right, Enter };
@@ -121,20 +127,112 @@ public:
 
 class Core {
 private:
-  State_pagman state;
+  State_pagman state_pag;
+  State_ghost state_ghost;
+  int max_meat;
   bool wall(int i, int j) {
-    return state.map[i][j] == '*' || state.map[i][j] == '1';
+    return state_pag.map[i][j] == '*' || state_pag.map[i][j] == '1';
   }
   void eat(int i, int j) {
-    if (state.map[i][j] == 'm') {
-      state.score++;
-      state.map[i][j] = '0';
+    if (state_pag.map[i][j] == 'm') {
+      state_pag.score++;
+      state_pag.map[i][j] = '0';
+      if (state_pag.score == max_meat)
+        state_pag.running = 0;
+    }
+  }
+  vector<vector<int>> bfs() {
+    int li = lround(state_pag.pag_cord.i);
+    int lj = lround(state_pag.pag_cord.j);
+    vector<vector<int>> d(1000, vector<int>(1000));
+    int i = 0, j = 0;
+    while (state_pag.map[i][j] != 'e') {
+      switch (state_pag.map[i][j]) {
+      case '*':
+      case '1':
+        d[i][j] = 10000000;
+        j++;
+        break;
+      case '0':
+        d[i][j] = 1000000;
+        j++;
+        break;
+      case 'm':
+        d[i][j] = 1000000;
+        j++;
+        break;
+      case '\n':
+        i++;
+        j = 0;
+        break;
+      }
+    }
+    d[li][lj] = 0;
+    queue<pair<int, int>> queue;
+    queue.push({li, lj});
+    while (queue.size()) {
+      auto u = queue.front();
+      queue.pop();
+      if (d[u.first - 1][u.second] == 1000000) {
+        d[u.first - 1][u.second] = d[u.first][u.second] + 1;
+        queue.push({u.first - 1, u.second});
+      }
+      if (d[u.first + 1][u.second] == 1000000) {
+        d[u.first + 1][u.second] = d[u.first][u.second] + 1;
+        queue.push({u.first + 1, u.second});
+      }
+      if (d[u.first][u.second - 1] == 1000000) {
+        d[u.first][u.second - 1] = d[u.first][u.second] + 1;
+        queue.push({u.first, u.second - 1});
+      }
+      if (d[u.first][u.second + 1] == 1000000) {
+        d[u.first][u.second + 1] = d[u.first][u.second] + 1;
+        queue.push({u.first, u.second + 1});
+      }
+    }
+    return d;
+  }
+  void update_ghost(double dt) {
+    auto &[ghost_speed, ghost_cord, ghost_route] = state_ghost;
+    double rem_distance = ghost_speed * dt;
+
+    while (rem_distance > EPS) {
+      if (fabs(ghost_cord.i - round(ghost_cord.i)) < EPS &&
+          fabs(ghost_cord.j - round(ghost_cord.j)) < EPS) {
+        ghost_cord.i = round(ghost_cord.i);
+        ghost_cord.j = round(ghost_cord.j);
+        int li = lround(ghost_cord.i);
+        int lj = lround(ghost_cord.j);
+        vector<vector<int>> best = bfs();
+        if (best[li - 1][lj] < best[li + 1][lj] &&
+            best[li - 1][lj] < best[li][lj - 1] &&
+            best[li - 1][lj] < best[li][lj + 1])
+          state_ghost.ghost_route = {-1, 0};
+        else if (best[li + 1][lj] < best[li][lj - 1] &&
+                 best[li + 1][lj] < best[li][lj + 1])
+          state_ghost.ghost_route = {1, 0};
+        else if (best[li][lj - 1] < best[li][lj + 1])
+          state_ghost.ghost_route = {0, -1};
+        else
+          state_ghost.ghost_route = {0, 1};
+      }
+      double &curr_cord = ghost_route.i ? ghost_cord.i : ghost_cord.j;
+      double target = (ghost_route.i + ghost_route.j) > 0 ? floor(curr_cord) + 1
+                                                          : ceil(curr_cord) - 1;
+      double last_cord = curr_cord;
+      if (fabs(target - curr_cord) < EPS)
+        curr_cord = target;
+      else
+        curr_cord += (ghost_route.i + ghost_route.j) *
+                     min(rem_distance, fabs(target - curr_cord));
+      rem_distance -= min(rem_distance, fabs(target - last_cord));
     }
   }
 
 public:
   Core(string map_name) {
-    state.map_name = map_name;
+    state_pag.map_name = map_name;
+    max_meat = 0;
 
     ifstream in(map_name);
     if (in.is_open()) {
@@ -142,42 +240,47 @@ public:
       int i = 0, j = 0;
       while (in.get(ch)) {
         if (ch == '\n') {
-          state.map[i][j] = ch;
+          state_pag.map[i][j] = ch;
           i++;
           j = 0;
         } else if (ch == '0') {
-          state.map[i][j] = 'm';
+          state_pag.map[i][j] = 'm';
+          max_meat++;
           j++;
         } else {
-          state.map[i][j] = ch;
+          state_pag.map[i][j] = ch;
           j++;
         }
       }
-      state.map[i][j] = 'e';
+      state_pag.map[i][j] = 'e';
     }
-    state.pag_cord = {1, 1};
-    state.pag_speed = 1.5;
-    state.curr_route = {1, 0};
-    state.next_route = {1, 0};
-    state.running = true;
-    state.score = 0;
+    state_pag.pag_cord = {1, 1};
+    state_pag.pag_speed = 1.5;
+    state_pag.curr_route = {1, 0};
+    state_pag.next_route = {1, 0};
+    state_pag.running = true;
+    state_pag.score = 0;
+    // ghosts
+    state_ghost.ghost_cord = {3, 2};
+    state_ghost.ghost_route = {0, 1};
+    state_ghost.ghost_speed = 1;
   };
   void handle(Command command) {
     switch (command) {
     case Command::Quit:
-      state.running = false;
+      state_pag.running = false;
       break;
     case Command::Down:
-      state.next_route = {1, 0};
+      state_pag.next_route = {1, 0};
       break;
     case Command::Up:
-      state.next_route = {-1, 0};
+      state_pag.next_route = {-1, 0};
       break;
     case Command::Left:
-      state.next_route = {0, -1};
+      state_pag.next_route = {0, -1};
       break;
     case Command::Right:
-      state.next_route = {0, 1};
+      state_pag.next_route = {0, 1};
       break;
     default:
       break;
@@ -185,7 +288,7 @@ public:
   };
   void update(double dt) {
     auto &[map_name, map, pag_speed, pag_cord, curr_route, next_route, running,
-           score] = state;
+           score] = state_pag;
     double rem_distance = pag_speed * dt;
 
     if (next_route.i == -curr_route.i && next_route.j == -curr_route.j) {
@@ -220,7 +323,10 @@ public:
                      min(rem_distance, fabs(target - curr_cord));
       rem_distance -= min(rem_distance, fabs(target - last_cord));
     }
+
+    update_ghost(dt);
   };
-  const State_pagman &get_state() const { return state; };
-  const bool &running() { return state.running; }
+  const State_pagman &get_state_pag() const { return state_pag; };
+  const State_ghost &get_state_ghost() const { return state_ghost; };
+  const bool &running() { return state_pag.running; }
 };
