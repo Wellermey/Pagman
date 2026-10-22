@@ -35,7 +35,12 @@ int main() {
         front.render(core.get_state_pag(), core.get_state_ghost());
         this_thread::sleep_for(20ms);
       }
-      menu = Menu();
+      command = front.Input();
+      while (command != Command::Quit && command != Command::Enter) {
+        front.render(core.get_state_pag().win, core.get_state_pag().score);
+        command = front.Input();
+      }
+      menu.end_pagman();
     }
   }
   return 0;

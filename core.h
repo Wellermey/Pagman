@@ -22,18 +22,21 @@ struct Point {
 
 struct State_menu {
   int selected;
+  int now;
   int size;
+  int type;
   vector<string> menu;
 };
 
 struct State_pagman {
-  string map_name = "map1.txt";
+  string map_name;
   char map[1000][1000];
   double pag_speed;
   Point pag_cord;
   Point curr_route;
   Point next_route;
   bool running;
+  bool win;
   int score;
 };
 
@@ -50,17 +53,15 @@ private:
   State_menu state;
   bool _running;
   bool _pagman;
-  int _type;
-  string map_name;
   vector<string> maps;
 
   void update() {
-    switch (_type) {
+    switch (state.type) {
     case 'i':
       if (state.selected == 0)
         _pagman = true;
       else if (state.selected == 1) {
-        _type = 'm';
+        state.type = 'm';
         state.selected = 0;
         state.menu = {};
         state.size = maps.size() + 1;
@@ -73,12 +74,13 @@ private:
         _running = false;
       break;
     case 'm':
-      if (state.selected != state.size - 1)
-        map_name = maps[state.selected];
+      if (state.selected != state.size - 1) {
+        state.now = state.selected;
+      }
       state.selected = 0;
       state.size = 3;
       state.menu = {"1) Play", "2) Change map", "3) Quit"};
-      _type = 'i';
+      state.type = 'i';
       break;
     }
   };
@@ -88,16 +90,16 @@ public:
     state.selected = 0;
     state.menu = {"1) Play", "2) Change map", "3) Quit"};
     state.size = 3;
+    state.now = 0;
     _running = true;
     _pagman = false;
-    _type = 'i';
+    state.type = 'i';
 
     for (const auto &entry : filesystem::directory_iterator(".")) {
       if (entry.is_regular_file() && entry.path().extension() == ".txt") {
         maps.push_back(entry.path().filename().string());
       }
     }
-    map_name = maps[0];
   };
   void handle(Command command) {
     switch (command) {
@@ -121,8 +123,9 @@ public:
   };
   bool running() { return _running; };
   bool pagman() { return _pagman; };
+  void end_pagman() { _pagman = false; };
   const State_menu &get_state() const { return state; };
-  string name() { return map_name; };
+  string name() { return maps[state.now]; };
 };
 
 class Core {
@@ -137,14 +140,16 @@ private:
     if (state_pag.map[i][j] == 'm') {
       state_pag.score++;
       state_pag.map[i][j] = '0';
-      if (state_pag.score == max_meat)
+      if (state_pag.score == max_meat) {
         state_pag.running = 0;
+        state_pag.win = true;
+      }
     }
   }
   vector<vector<int>> bfs() {
     int li = lround(state_pag.pag_cord.i);
     int lj = lround(state_pag.pag_cord.j);
-    vector<vector<int>> d(1000, vector<int>(1000));
+    vector<vector<int>> d(1002, vector<int>(1002));
     int i = 0, j = 0;
     while (state_pag.map[i][j] != 'e') {
       switch (state_pag.map[i][j]) {
@@ -192,11 +197,12 @@ private:
     }
     return d;
   }
-  void update_ghost(double dt) {
+  void update_ghost(double dt, double last_pagi, double last_pagj) {
     auto &[ghost_speed, ghost_cord, ghost_route] = state_ghost;
     double rem_distance = ghost_speed * dt;
 
     while (rem_distance > EPS) {
+      double lasti = ghost_cord.i, lastj = ghost_cord.j;
       if (fabs(ghost_cord.i - round(ghost_cord.i)) < EPS &&
           fabs(ghost_cord.j - round(ghost_cord.j)) < EPS) {
         ghost_cord.i = round(ghost_cord.i);
@@ -207,15 +213,24 @@ private:
         if (best[li - 1][lj] < best[li + 1][lj] &&
             best[li - 1][lj] < best[li][lj - 1] &&
             best[li - 1][lj] < best[li][lj + 1])
-          state_ghost.ghost_route = {-1, 0};
+          ghost_route = {-1, 0};
         else if (best[li + 1][lj] < best[li][lj - 1] &&
                  best[li + 1][lj] < best[li][lj + 1])
-          state_ghost.ghost_route = {1, 0};
+          ghost_route = {1, 0};
         else if (best[li][lj - 1] < best[li][lj + 1])
-          state_ghost.ghost_route = {0, -1};
+          ghost_route = {0, -1};
         else
-          state_ghost.ghost_route = {0, 1};
+          ghost_route = {0, 1};
+        if (lround(ghost_cord.i) == lround(state_pag.pag_cord.i) &&
+            lround(ghost_cord.j) == lround(state_pag.pag_cord.j))
+          ghost_route = {abs(lround(ghost_cord.i) - ghost_cord.i) < EPS ? 0.0
+                         : lround(ghost_cord.i) < ghost_cord.i          ? -1.0
+                                                                        : 1.0,
+                         abs(lround(ghost_cord.j) - ghost_cord.j) < EPS ? 0.0
+                         : lround(ghost_cord.j) < ghost_cord.j          ? -1.0
+                                                                        : 1.0};
       }
+
       double &curr_cord = ghost_route.i ? ghost_cord.i : ghost_cord.j;
       double target = (ghost_route.i + ghost_route.j) > 0 ? floor(curr_cord) + 1
                                                           : ceil(curr_cord) - 1;
@@ -226,6 +241,21 @@ private:
         curr_cord += (ghost_route.i + ghost_route.j) *
                      min(rem_distance, fabs(target - curr_cord));
       rem_distance -= min(rem_distance, fabs(target - last_cord));
+      // kill pagman
+      if (min(lasti, ghost_cord.i) <= last_pagi &&
+          last_pagi <= max(lasti, ghost_cord.i) &&
+          min(lastj, ghost_cord.j) <= last_pagj &&
+          last_pagj <= max(lastj, ghost_cord.j)) {
+        state_pag.running = false;
+        state_pag.win = false;
+      }
+      if (min(lasti, ghost_cord.i) <= state_pag.pag_cord.i &&
+          state_pag.pag_cord.i <= max(lasti, ghost_cord.i) &&
+          min(lastj, ghost_cord.j) <= state_pag.pag_cord.j &&
+          state_pag.pag_cord.j <= max(lastj, ghost_cord.j)) {
+        state_pag.running = false;
+        state_pag.win = false;
+      }
     }
   }
 
@@ -239,31 +269,44 @@ public:
       char ch;
       int i = 0, j = 0;
       while (in.get(ch)) {
-        if (ch == '\n') {
+        switch (ch) {
+        case '\n':
           state_pag.map[i][j] = ch;
           i++;
           j = 0;
-        } else if (ch == '0') {
+          break;
+        case '0':
           state_pag.map[i][j] = 'm';
           max_meat++;
           j++;
-        } else {
+          break;
+        case 'p':
+          state_pag.pag_cord = {(double)i, (double)j};
+          state_pag.map[i][j] = '0';
+          j++;
+          break;
+        case 'g':
+          state_ghost.ghost_cord = {(double)i, (double)j};
+          state_pag.map[i][j] = '0';
+          j++;
+          break;
+        default:
           state_pag.map[i][j] = ch;
           j++;
+          break;
         }
       }
       state_pag.map[i][j] = 'e';
     }
-    state_pag.pag_cord = {1, 1};
     state_pag.pag_speed = 1.5;
     state_pag.curr_route = {1, 0};
     state_pag.next_route = {1, 0};
     state_pag.running = true;
+    state_pag.win = false;
     state_pag.score = 0;
     // ghosts
-    state_ghost.ghost_cord = {3, 2};
     state_ghost.ghost_route = {0, 1};
-    state_ghost.ghost_speed = 1;
+    state_ghost.ghost_speed = 1.7;
   };
   void handle(Command command) {
     switch (command) {
@@ -288,8 +331,9 @@ public:
   };
   void update(double dt) {
     auto &[map_name, map, pag_speed, pag_cord, curr_route, next_route, running,
-           score] = state_pag;
+           win, score] = state_pag;
     double rem_distance = pag_speed * dt;
+    double lasti = pag_cord.i, lastj = pag_cord.j;
 
     if (next_route.i == -curr_route.i && next_route.j == -curr_route.j) {
       curr_route = next_route;
@@ -324,7 +368,7 @@ public:
       rem_distance -= min(rem_distance, fabs(target - last_cord));
     }
 
-    update_ghost(dt);
+    update_ghost(dt, lasti, lastj);
   };
   const State_pagman &get_state_pag() const { return state_pag; };
   const State_ghost &get_state_ghost() const { return state_ghost; };

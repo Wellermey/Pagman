@@ -1,6 +1,8 @@
 #include "core.h"
 #include "front.h"
 #include <cmath>
+#include <string>
+#include <vector>
 #if __has_include(<ncurses.h>)
 #include <ncurses.h>
 #else
@@ -12,6 +14,7 @@
 #define MY_PACMAN 31
 #define MY_EMPTY 32
 #define MY_TEXT 33
+#define MY_GREEN 34
 
 Frontend::Frontend() {
   setlocale(LC_ALL, "");
@@ -31,6 +34,9 @@ Frontend::Frontend() {
   init_color(MY_TEXT, 804, 839, 957);
   init_pair(4, MY_TEXT, MY_EMPTY);
   init_pair(5, MY_EMPTY, MY_TEXT);
+  init_color(MY_GREEN, 651, 890, 631);
+  init_pair(6, MY_EMPTY, MY_GREEN);
+  init_pair(7, MY_TEXT, MY_RED);
 }
 std::optional<Command> Frontend::Input() {
   int ch = getch();
@@ -117,11 +123,47 @@ void Frontend::render(const State_menu &state) {
       attron(COLOR_PAIR(5));
     else
       attron(COLOR_PAIR(4));
-    mvprintw(2 + 2 * i, 2, "%s", state.menu[i].c_str());
+    if (i == state.now && state.type == 'm')
+      mvprintw(2 + 2 * i, 2, "> %s", state.menu[i].c_str());
+    else
+      mvprintw(2 + 2 * i, 2, "%s", state.menu[i].c_str());
     if (i == state.selected)
       attroff(COLOR_PAIR(5));
     else
       attroff(COLOR_PAIR(4));
+  }
+
+  refresh();
+}
+
+void Frontend::render(bool win, int score) {
+  erase();
+  int maxi, maxj;
+  getmaxyx(stdscr, maxi, maxj);
+  if (win) {
+    int starti = (maxi - 5) / 2, startj = (maxj - 15) / 2;
+    bkgd(COLOR_PAIR(6));
+    attron(COLOR_PAIR(6));
+    vector<string> text = {"█   █ ███ █   █", "█   █  █  ██  █",
+                           "█ █ █  █  █ █ █", "██ ██  █  █  ██",
+                           "█   █ ███ █   █"};
+    for (int i = 0; i < 5; i++)
+      mvprintw(starti + i, startj, "%s", text[i].c_str());
+    mvprintw(starti + 5, (maxj - 7 - to_string(score).size()) / 2, "Score: %s",
+             to_string(score).c_str());
+    attroff(COLOR_PAIR(6));
+  } else {
+    int starti = (maxi - 5) / 2, startj = (maxj - 24) / 2;
+    bkgd(COLOR_PAIR(7));
+    attron(COLOR_PAIR(7));
+    vector<string> text = {"█      ███   ████ █████", "█     █   █ █     █    ",
+                           "█     █   █  ███  ████ ", "█     █   █     █ █    ",
+                           "█████  ███  ████  █████"};
+    for (int i = 0; i < 5; i++)
+      mvprintw(starti + i, startj, "%s", text[i].c_str());
+    mvprintw(starti + 5, (maxj - 7 - to_string(score).size()) / 2, "Score: %s",
+             to_string(score).c_str());
+    attroff(COLOR_PAIR(6));
   }
 
   refresh();
