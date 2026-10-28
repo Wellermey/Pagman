@@ -59,41 +59,33 @@ std::optional<Command> Frontend::Input() {
   }
 }
 void Frontend::render(const State_pagman &state_pag,
-                      const State_ghost &state_ghost) {
+                      const State_ghost &state_ghost, const Map &map) {
   erase();
   bkgd(COLOR_PAIR(4));
-  int i = 0, j = 0;
-  int len = 0;
-  while (state_pag.map[i][j] != 'e') {
-    switch (state_pag.map[i][j]) {
-    case '*':
-    case '1':
-      attron(COLOR_PAIR(1));
-      addch('#');
-      addch('#');
-      attroff(COLOR_PAIR(1));
-      j++;
-      break;
-    case '0':
-      attron(COLOR_PAIR(2));
-      addch(' ');
-      addch(' ');
-      attroff(COLOR_PAIR(2));
-      j++;
-      break;
-    case 'm':
-      attron(COLOR_PAIR(4));
-      addstr("• ");
-      attroff(COLOR_PAIR(4));
-      j++;
-      break;
-    case '\n':
-      addch('\n');
-      i++;
-      len = 2 * j;
-      j = 0;
-      break;
+  for (int i = 0; i < map.sizei; i++) {
+    for (int j = 0; j < map.sizej; j++) {
+      switch (map.map[i][j]) {
+      case '*':
+      case '1':
+        attron(COLOR_PAIR(1));
+        addch('#');
+        addch('#');
+        attroff(COLOR_PAIR(1));
+        break;
+      case '0':
+        attron(COLOR_PAIR(2));
+        addch(' ');
+        addch(' ');
+        attroff(COLOR_PAIR(2));
+        break;
+      case 'm':
+        attron(COLOR_PAIR(4));
+        addstr("• ");
+        attroff(COLOR_PAIR(4));
+        break;
+      }
     }
+    addch('\n');
   }
   // pagman
   attron(COLOR_PAIR(3));
@@ -110,7 +102,7 @@ void Frontend::render(const State_pagman &state_pag,
   attroff(COLOR_PAIR(4));
   // score
   attron(COLOR_PAIR(4));
-  mvprintw(0, len, "Score: %i", state_pag.score);
+  mvprintw(0, 2 * map.sizej, "Score: %i", state_pag.score);
   attroff(COLOR_PAIR(4));
 
   refresh();

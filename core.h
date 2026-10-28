@@ -1,24 +1,14 @@
 #pragma once
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
-#include <initializer_list>
 #include <queue>
-#include <sstream>
 #include <string>
-#include <utility>
-#include <vector>
 
 #define EPS 1e-9
 
 using namespace std;
-
-struct Point {
-  double i;
-  double j;
-};
 
 struct State_menu {
   int selected;
@@ -28,9 +18,11 @@ struct State_menu {
   vector<string> menu;
 };
 
+struct Point {
+  double i, j;
+};
+
 struct State_pagman {
-  string map_name;
-  char map[1000][1000];
   double pag_speed;
   Point pag_cord;
   Point curr_route;
@@ -44,6 +36,12 @@ struct State_ghost {
   double ghost_speed;
   Point ghost_cord;
   Point ghost_route;
+};
+
+struct Map {
+  int sizei;
+  int sizej;
+  char map[100][100];
 };
 
 enum class Command { Quit, Up, Down, Left, Right, Enter };
@@ -95,9 +93,9 @@ public:
     _pagman = false;
     state.type = 'i';
 
-    for (const auto &entry : filesystem::directory_iterator(".")) {
-      if (entry.is_regular_file() && entry.path().extension() == ".txt") {
-        maps.push_back(entry.path().filename().string());
+    for (const auto &entry : filesystem::directory_iterator("maps")) {
+      if (entry.is_regular_file() && entry.path().extension() == ".map") {
+        maps.push_back("maps/" + entry.path().filename().string());
       }
     }
   };
@@ -132,46 +130,44 @@ class Core {
 private:
   State_pagman state_pag;
   State_ghost state_ghost;
+  Map map;
+
   int max_meat;
   bool wall(int i, int j) {
-    return state_pag.map[i][j] == '*' || state_pag.map[i][j] == '1';
+    return map.map[i][j] == '*' || map.map[i][j] == '1';
   }
+
   void eat(int i, int j) {
-    if (state_pag.map[i][j] == 'm') {
+    if (map.map[i][j] == 'm') {
       state_pag.score++;
-      state_pag.map[i][j] = '0';
+      map.map[i][j] = '0';
       if (state_pag.score == max_meat) {
         state_pag.running = 0;
         state_pag.win = true;
       }
     }
   }
+
   vector<vector<int>> bfs() {
     int li = lround(state_pag.pag_cord.i);
     int lj = lround(state_pag.pag_cord.j);
     vector<vector<int>> d(1002, vector<int>(1002));
-    int i = 0, j = 0;
-    while (state_pag.map[i][j] != 'e') {
-      switch (state_pag.map[i][j]) {
-      case '*':
-      case '1':
-        d[i][j] = 10000000;
-        j++;
-        break;
-      case '0':
-        d[i][j] = 1000000;
-        j++;
-        break;
-      case 'm':
-        d[i][j] = 1000000;
-        j++;
-        break;
-      case '\n':
-        i++;
-        j = 0;
-        break;
+    for (int i = 0; i < map.sizei; i++)
+      for (int j = 0; j < map.sizej; j++) {
+
+        switch (map.map[i][j]) {
+        case '*':
+        case '1':
+          d[i][j] = 10000000;
+          break;
+        case '0':
+          d[i][j] = 1000000;
+          break;
+        case 'm':
+          d[i][j] = 1000000;
+          break;
+        }
       }
-    }
     d[li][lj] = 0;
     queue<pair<int, int>> queue;
     queue.push({li, lj});
@@ -261,52 +257,36 @@ private:
 
 public:
   Core(string map_name) {
-    state_pag.map_name = map_name;
     max_meat = 0;
-
-    ifstream in(map_name);
-    if (in.is_open()) {
-      char ch;
-      int i = 0, j = 0;
-      while (in.get(ch)) {
-        switch (ch) {
-        case '\n':
-          state_pag.map[i][j] = ch;
-          i++;
-          j = 0;
-          break;
-        case '0':
-          state_pag.map[i][j] = 'm';
-          max_meat++;
-          j++;
-          break;
-        case 'p':
-          state_pag.pag_cord = {(double)i, (double)j};
-          state_pag.map[i][j] = '0';
-          j++;
-          break;
-        case 'g':
-          state_ghost.ghost_cord = {(double)i, (double)j};
-          state_pag.map[i][j] = '0';
-          j++;
-          break;
-        default:
-          state_pag.map[i][j] = ch;
-          j++;
-          break;
-        }
-      }
-      state_pag.map[i][j] = 'e';
+    {
+      ifstream in("state.all", ios::binary);
+      in.read(reinterpret_cast<char *>(&state_pag), sizeof state_pag);
+      in.read(reinterpret_cast<char *>(&state_ghost), sizeof state_ghost);
     }
-    state_pag.pag_speed = 1.5;
-    state_pag.curr_route = {1, 0};
-    state_pag.next_route = {1, 0};
-    state_pag.running = true;
-    state_pag.win = false;
-    state_pag.score = 0;
-    // ghosts
-    state_ghost.ghost_route = {0, 1};
-    state_ghost.ghost_speed = 1.7;
+    {
+      ifstream in(map_name, ios::binary);
+      in.read(reinterpret_cast<char *>(&map.sizei), sizeof(map.sizei));
+      in.read(reinterpret_cast<char *>(&map.sizej), sizeof(map.sizej));
+      for (int i = 0; i < map.sizei; i++)
+        in.read(map.map[i], map.sizej);
+      for (int i = 0; i < map.sizei; i++)
+        for (int j = 0; j < map.sizej; j++) {
+          switch (map.map[i][j]) {
+          case '0':
+            map.map[i][j] = 'm';
+            max_meat++;
+            break;
+          case 'p':
+            state_pag.pag_cord = {(double)i, (double)j};
+            map.map[i][j] = '0';
+            break;
+          case 'g':
+            state_ghost.ghost_cord = {(double)i, (double)j};
+            map.map[i][j] = '0';
+            break;
+          }
+        }
+    }
   };
   void handle(Command command) {
     switch (command) {
@@ -330,8 +310,8 @@ public:
     }
   };
   void update(double dt) {
-    auto &[map_name, map, pag_speed, pag_cord, curr_route, next_route, running,
-           win, score] = state_pag;
+    auto &[pag_speed, pag_cord, curr_route, next_route, running, win, score] =
+        state_pag;
     double rem_distance = pag_speed * dt;
     double lasti = pag_cord.i, lastj = pag_cord.j;
 
@@ -372,5 +352,6 @@ public:
   };
   const State_pagman &get_state_pag() const { return state_pag; };
   const State_ghost &get_state_ghost() const { return state_ghost; };
+  const Map &get_map() const { return map; };
   const bool &running() { return state_pag.running; }
 };
