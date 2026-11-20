@@ -116,15 +116,48 @@ void Frontend::render(const State_menu &state, string map_name) {
     else
       attron(COLOR_PAIR(4));
     if (state.menu[i] == map_name)
-      mvprintw(2 + 2 * i, 2, "> %s", state.menu[i].c_str());
+      mvprintw(1 + 2 * i, 2, "> %s", state.menu[i].c_str());
     else
-      mvprintw(2 + 2 * i, 2, "%s", state.menu[i].c_str());
+      mvprintw(1 + 2 * i, 2, "%s", state.menu[i].c_str());
     if (i == state.selected)
       attroff(COLOR_PAIR(5));
     else
       attroff(COLOR_PAIR(4));
   }
 
+  refresh();
+}
+
+void Frontend::render(const Changeable stats) {
+  erase();
+  bkgd(COLOR_PAIR(4));
+  if (0 == stats.selected) {
+    attron(COLOR_PAIR(5));
+    mvprintw(1, 2, "Pagman speed %.1f", stats.pag_speed);
+    attroff(COLOR_PAIR(5));
+  } else {
+    attron(COLOR_PAIR(4));
+    mvprintw(1, 2, "Pagman speed %.1f", stats.pag_speed);
+    attroff(COLOR_PAIR(4));
+  }
+  if (1 == stats.selected) {
+    attron(COLOR_PAIR(5));
+    mvprintw(3, 2, "Ghost speed %.1f", stats.ghost_speed);
+    attroff(COLOR_PAIR(5));
+  } else {
+    attron(COLOR_PAIR(4));
+    mvprintw(3, 2, "Ghost speed %.1f", stats.ghost_speed);
+    attroff(COLOR_PAIR(4));
+  }
+  if (2 == stats.selected) {
+    attron(COLOR_PAIR(5));
+    mvprintw(5, 2, "Back");
+    attroff(COLOR_PAIR(5));
+  } else {
+    attron(COLOR_PAIR(4));
+    mvprintw(5, 2, "Back");
+    attroff(COLOR_PAIR(4));
+  }
   refresh();
 }
 

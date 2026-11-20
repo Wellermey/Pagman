@@ -10,5 +10,6 @@ public:
               const Map &map);
   void render(const State_menu &state_pag, string map_name);
   void render(bool win, int score);
+  void render(Changeable stats);
   ~Frontend();
 };

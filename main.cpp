@@ -17,20 +17,23 @@ vector<string> get_maps() {
   return maps;
 }
 
-void init_menu(int &menu_type, Menu &menu, bool &menu_run, bool &core_run,
-               string &map_name, vector<string> maps) {
+void init_menu(int &menu_type, Menu &menu, int &what_run, string &map_name,
+               vector<string> maps) {
   if (menu_type == 'i')
     menu.init({
-        {"Play", [&core_run] { core_run = true; }},
+        {"Play", [&what_run] { what_run = 'p'; }},
         {"Change map", [&menu_type] { menu_type = 'm'; }},
         {"Create map", [] { /* TODO */ }},
-        {"Change stats", [] { /* TODO */ }},
-        {"Quit", [&menu_run] { menu_run = false; }},
+        {"Change stats", [&what_run] { what_run = 's'; }},
+        {"Quit", [&what_run] { what_run = 0; }},
     });
   else if (menu_type == 'm') {
     vector<Item> v;
     for (int i = 0; i < (int)maps.size(); i++)
-      v.push_back({maps[i], [i, &maps, &map_name] { map_name = maps[i]; }});
+      v.push_back({maps[i], [&map_name, &menu_type, name = maps[i]] {
+                     map_name = name;
+                     menu_type = 'i';
+                   }});
     v.push_back({"Back", [&menu_type] { menu_type = 'i'; }});
     menu.init(v);
   }
@@ -44,19 +47,28 @@ int main() {
   Frontend front;
   int menu_type = 'i';
   string map_name = "01.map";
-  bool menu_run = 1, core_run = 0;
+  int what_run = 'm';
   vector<string> maps = get_maps();
 
-  while (menu_run) {
+  while (what_run) {
     if (menu_type) {
-      init_menu(menu_type, menu, menu_run, core_run, map_name, maps);
+      init_menu(menu_type, menu, what_run, map_name, maps);
     }
     auto command = front.Input();
     if (command.has_value())
       menu.handle(*command);
-    if (!core_run)
+    if (what_run == 'm')
       front.render(menu.get_state(), map_name);
-    else {
+    if (what_run == 's') {
+      Stats stats;
+      while (stats.running()) {
+        auto command = front.Input();
+        if (command.has_value())
+          stats.handle(*command);
+        front.render(stats.get_state());
+      }
+      what_run = 'm';
+    } else if (what_run == 'p') {
       using Clock = steady_clock;
       auto last = Clock::now();
 
@@ -79,7 +91,7 @@ int main() {
         front.render(core.get_state_pag().win, core.get_state_pag().score);
         command = front.Input();
       }
-      core_run = 0;
+      what_run = 'm';
     }
   }
   return 0;

@@ -49,6 +49,76 @@ struct Item {
   function<void()> action;
 };
 
+struct Changeable {
+  double pag_speed;
+  double ghost_speed;
+  int selected;
+};
+
+class Stats {
+  Changeable state;
+  State_pagman state_pag;
+  State_ghost state_ghost;
+  int _running;
+  void save() {
+    state_pag.pag_speed = state.pag_speed;
+    state_ghost.ghost_speed = state.ghost_speed;
+    ofstream out("state.all", ios::binary);
+    out.write(reinterpret_cast<const char *>(&state_pag), sizeof state_pag);
+    out.write(reinterpret_cast<const char *>(&state_ghost), sizeof state_ghost);
+  }
+
+public:
+  Stats() {
+    state.selected = 0;
+    _running = 1;
+    {
+      ifstream in("state.all", ios::binary);
+      in.read(reinterpret_cast<char *>(&state_pag), sizeof state_pag);
+      in.read(reinterpret_cast<char *>(&state_ghost), sizeof state_ghost);
+    }
+    state.pag_speed = state_pag.pag_speed;
+    state.ghost_speed = state_ghost.ghost_speed;
+  }
+
+  void handle(Command command) {
+    switch (command) {
+    case Command::Quit:
+      _running = false;
+      break;
+    case Command::Down:
+      state.selected = ((state.selected + 1) % 3 + 3) % 3;
+      break;
+    case Command::Up:
+      state.selected = ((state.selected - 1) % 3 + 3) % 3;
+      break;
+    case Command::Enter:
+      if (state.selected == 2)
+        _running = 0;
+      break;
+    case Command::Left:
+      if (state.selected == 0 && state.pag_speed - 0.1 > 0)
+        state.pag_speed -= 0.1;
+      if (state.selected == 1 && state.ghost_speed - 0.1 > 0)
+        state.ghost_speed -= 0.1;
+      break;
+    case Command::Right:
+      if (state.selected == 0 && state.pag_speed + 0.1 < 5)
+        state.pag_speed += 0.1;
+      if (state.selected == 1 && state.ghost_speed + 0.1 < 6)
+        state.ghost_speed += 0.1;
+      break;
+    default:
+      break;
+    }
+    if (!_running)
+      save();
+  };
+
+  const Changeable &get_state() const { return state; };
+  bool running() { return _running; };
+};
+
 class Menu {
   State_menu state;
   vector<Item> items;
