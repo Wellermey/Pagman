@@ -3,8 +3,8 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <queue>
-#include <string>
 
 #define EPS 1e-9
 
@@ -12,9 +12,7 @@ using namespace std;
 
 struct State_menu {
   int selected;
-  int now;
   int size;
-  int type;
   vector<string> menu;
 };
 
@@ -46,63 +44,29 @@ struct Map {
 
 enum class Command { Quit, Up, Down, Left, Right, Enter };
 
-class Menu {
-private:
-  State_menu state;
-  bool _running;
-  bool _pagman;
-  vector<string> maps;
+struct Item {
+  string name;
+  function<void()> action;
+};
 
-  void update() {
-    switch (state.type) {
-    case 'i':
-      if (state.selected == 0)
-        _pagman = true;
-      else if (state.selected == 1) {
-        state.type = 'm';
-        state.selected = 0;
-        state.menu = {};
-        state.size = maps.size() + 1;
-        for (int i = 1; i <= (int)maps.size(); i++) {
-          state.menu.push_back(to_string(i) + ") " + maps[i - 1]);
-        }
-        state.menu.push_back(to_string(state.size) + ") Back");
-      }
-      if (state.selected == 2)
-        _running = false;
-      break;
-    case 'm':
-      if (state.selected != state.size - 1) {
-        state.now = state.selected;
-      }
-      state.selected = 0;
-      state.size = 3;
-      state.menu = {"1) Play", "2) Change map", "3) Quit"};
-      state.type = 'i';
-      break;
-    }
-  };
+class Menu {
+  State_menu state;
+  vector<Item> items;
 
 public:
-  Menu() {
+  void init(vector<Item> _items) {
+    items = _items;
     state.selected = 0;
-    state.menu = {"1) Play", "2) Change map", "3) Quit"};
-    state.size = 3;
-    state.now = 0;
-    _running = true;
-    _pagman = false;
-    state.type = 'i';
+    state.size = _items.size();
+    state.menu.clear();
+    for (int i = 0; i < (int)_items.size(); i++)
+      state.menu.push_back(_items[i].name);
+  }
 
-    for (const auto &entry : filesystem::directory_iterator("maps")) {
-      if (entry.is_regular_file() && entry.path().extension() == ".map") {
-        maps.push_back("maps/" + entry.path().filename().string());
-      }
-    }
-  };
   void handle(Command command) {
     switch (command) {
     case Command::Quit:
-      _running = false;
+      items[items.size() - 1].action();
       break;
     case Command::Down:
       state.selected =
@@ -113,17 +77,14 @@ public:
           ((state.selected - 1) % state.size + state.size) % state.size;
       break;
     case Command::Enter:
-      update();
+      items[state.selected].action();
       break;
     default:
       break;
     }
   };
-  bool running() { return _running; };
-  bool pagman() { return _pagman; };
-  void end_pagman() { _pagman = false; };
+
   const State_menu &get_state() const { return state; };
-  string name() { return maps[state.now]; };
 };
 
 class Core {
@@ -193,6 +154,15 @@ private:
     }
     return d;
   }
+  void kill(double lasti, double lastj, double curri, double currj, double pagi,
+            double pagj) {
+    if (min(lasti, curri) <= pagi && pagi <= max(lasti, curri) &&
+        min(lastj, currj) <= pagj && pagj <= max(lastj, currj)) {
+      state_pag.running = false;
+      state_pag.win = false;
+    }
+  }
+
   void update_ghost(double dt, double last_pagi, double last_pagj) {
     auto &[ghost_speed, ghost_cord, ghost_route] = state_ghost;
     double rem_distance = ghost_speed * dt;
@@ -238,25 +208,15 @@ private:
                      min(rem_distance, fabs(target - curr_cord));
       rem_distance -= min(rem_distance, fabs(target - last_cord));
       // kill pagman
-      if (min(lasti, ghost_cord.i) <= last_pagi &&
-          last_pagi <= max(lasti, ghost_cord.i) &&
-          min(lastj, ghost_cord.j) <= last_pagj &&
-          last_pagj <= max(lastj, ghost_cord.j)) {
-        state_pag.running = false;
-        state_pag.win = false;
-      }
-      if (min(lasti, ghost_cord.i) <= state_pag.pag_cord.i &&
-          state_pag.pag_cord.i <= max(lasti, ghost_cord.i) &&
-          min(lastj, ghost_cord.j) <= state_pag.pag_cord.j &&
-          state_pag.pag_cord.j <= max(lastj, ghost_cord.j)) {
-        state_pag.running = false;
-        state_pag.win = false;
-      }
+      kill(lasti, lastj, ghost_cord.i, ghost_cord.j, last_pagi, last_pagj);
+      kill(lasti, lastj, ghost_cord.i, ghost_cord.j, state_pag.pag_cord.i,
+           state_pag.pag_cord.j);
     }
   }
 
 public:
   Core(string map_name) {
+    map_name = "maps/" + map_name;
     max_meat = 0;
     {
       ifstream in("state.all", ios::binary);
@@ -320,6 +280,7 @@ public:
     }
 
     while (rem_distance > EPS) {
+      double li = pag_cord.i, lj = pag_cord.j;
       if (fabs(pag_cord.i - round(pag_cord.i)) < EPS &&
           fabs(pag_cord.j - round(pag_cord.j)) < EPS) {
         pag_cord.i = round(pag_cord.i);
@@ -346,8 +307,9 @@ public:
         curr_cord += (curr_route.i + curr_route.j) *
                      min(rem_distance, fabs(target - curr_cord));
       rem_distance -= min(rem_distance, fabs(target - last_cord));
+      kill(li, lj, pag_cord.i, pag_cord.j, state_ghost.ghost_cord.i,
+           state_ghost.ghost_cord.j);
     }
-
     update_ghost(dt, lasti, lastj);
   };
   const State_pagman &get_state_pag() const { return state_pag; };

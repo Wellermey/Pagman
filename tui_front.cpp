@@ -107,7 +107,7 @@ void Frontend::render(const State_pagman &state_pag,
 
   refresh();
 }
-void Frontend::render(const State_menu &state) {
+void Frontend::render(const State_menu &state, string map_name) {
   erase();
   bkgd(COLOR_PAIR(4));
   for (int i = 0; i < (int)state.menu.size(); i++) {
@@ -115,7 +115,7 @@ void Frontend::render(const State_menu &state) {
       attron(COLOR_PAIR(5));
     else
       attron(COLOR_PAIR(4));
-    if (i == state.now && state.type == 'm')
+    if (state.menu[i] == map_name)
       mvprintw(2 + 2 * i, 2, "> %s", state.menu[i].c_str());
     else
       mvprintw(2 + 2 * i, 2, "%s", state.menu[i].c_str());
