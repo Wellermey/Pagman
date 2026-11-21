@@ -11,5 +11,7 @@ public:
   void render(const State_menu &state_pag, string map_name);
   void render(bool win, int score);
   void render(Changeable stats);
+  void render(Editor_state state);
+  void render(int err);
   ~Frontend();
 };

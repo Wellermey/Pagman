@@ -131,33 +131,143 @@ void Frontend::render(const State_menu &state, string map_name) {
 void Frontend::render(const Changeable stats) {
   erase();
   bkgd(COLOR_PAIR(4));
-  if (0 == stats.selected) {
-    attron(COLOR_PAIR(5));
-    mvprintw(1, 2, "Pagman speed %.1f", stats.pag_speed);
-    attroff(COLOR_PAIR(5));
-  } else {
-    attron(COLOR_PAIR(4));
-    mvprintw(1, 2, "Pagman speed %.1f", stats.pag_speed);
-    attroff(COLOR_PAIR(4));
+  attron(COLOR_PAIR(4));
+  mvprintw(1, 2, "Pagman speed %.1f", stats.pag_speed);
+  mvprintw(3, 2, "Ghost speed %.1f", stats.ghost_speed);
+  mvprintw(5, 2, "Back");
+  attroff(COLOR_PAIR(4));
+
+  mvchgat(1 + 2 * stats.selected, 2, 16, A_NORMAL, 5, NULL);
+  refresh();
+}
+
+void Frontend::render(const Editor_state state) {
+  erase();
+  bkgd(COLOR_PAIR(4));
+
+  attron(COLOR_PAIR(state.selected == 0 ? 5 : 4));
+  mvprintw(1, 2, "Quit");
+  attroff(COLOR_PAIR(state.selected == 0 ? 5 : 4));
+
+  attron(COLOR_PAIR(state.selected == 1 ? 5 : 4));
+  mvprintw(3, 2, "Save");
+  attroff(COLOR_PAIR(state.selected == 1 ? 5 : 4));
+
+  attron(COLOR_PAIR(state.selected == 2 ? 5 : 4));
+  mvprintw(5, 2, "Height: %d", state.height);
+  attroff(COLOR_PAIR(state.selected == 2 ? 5 : 4));
+
+  attron(COLOR_PAIR(state.selected == 3 ? 5 : 4));
+  mvprintw(7, 2, "Width:  %d", state.width);
+  attroff(COLOR_PAIR(state.selected == 3 ? 5 : 4));
+
+  const char *names[] = {"Wall", "Empty", "Pagman", "Ghost"};
+  const char types[] = {'1', '0', 'p', 'g'};
+  int px = 2;
+  for (int k = 0; k < 4; k++) {
+    bool active = state.cell_type == types[k];
+    bool cursor = state.selected == 4 && state.j == k;
+    string s = string(active ? "[" : " ") + names[k] + (active ? "]" : " ");
+    attron(COLOR_PAIR(cursor ? 5 : 4));
+    mvprintw(9, px, "%s", s.c_str());
+    attroff(COLOR_PAIR(cursor ? 5 : 4));
+    px += (int)s.size() + 1;
   }
-  if (1 == stats.selected) {
-    attron(COLOR_PAIR(5));
-    mvprintw(3, 2, "Ghost speed %.1f", stats.ghost_speed);
-    attroff(COLOR_PAIR(5));
-  } else {
-    attron(COLOR_PAIR(4));
-    mvprintw(3, 2, "Ghost speed %.1f", stats.ghost_speed);
-    attroff(COLOR_PAIR(4));
+  const int top = 11;
+  int maxi, maxj;
+  getmaxyx(stdscr, maxi, maxj);
+  int rows = state.height + 2, cols = state.width + 2;
+  int view_h = maxi - top, view_w = maxj / 2;
+  auto calc_off = [](int cur, int view, int total) {
+    return max(0, min(cur - view / 2, total - view));
+  };
+  int off_i = state.selected == 5 ? calc_off(state.i, view_h, rows) : 0;
+  int off_j = state.selected == 5 ? calc_off(state.j, view_w, cols) : 0;
+
+  for (int y = 0; y < min(rows, view_h); y++)
+    for (int x = 0; x < min(cols, view_w); x++) {
+      int i = y + off_i, j = x + off_j;
+      bool cursor = state.selected == 5 && i == state.i && j == state.j;
+      const char *glyph = "  ";
+      int pair = 4;
+      switch (state.map[i][j]) {
+      case '*':
+      case '1':
+        glyph = "##";
+        pair = 1;
+        break;
+      case 'p':
+        glyph = "()";
+        pair = 3;
+        break;
+      case 'g':
+        glyph = "/\\";
+        pair = 4;
+        break;
+      }
+      if (cursor)
+        pair = 5;
+      attron(COLOR_PAIR(pair));
+      mvaddstr(top + y, 2 + 2 * x, glyph);
+      attroff(COLOR_PAIR(pair));
+    }
+  refresh();
+}
+
+void Frontend::render(int err) {
+  erase();
+  int maxi, maxj;
+  getmaxyx(stdscr, maxi, maxj);
+  bkgd(COLOR_PAIR(7));
+  attron(COLOR_PAIR(7));
+
+  vector<string> text;
+  string subtitle = "";
+  int width = 0;
+
+  switch (err) {
+  case 'p': // No Pagman
+    width = 49;
+    text = {"█   █  ███    ████   ███   ████ █   █  ███  █   █",
+            "██  █ █   █   █   █ █   █ █     ██ ██ █   █ ██  █",
+            "█ █ █ █   █   ████  █████ █  ██ █ █ █ █████ █ █ █",
+            "█  ██ █   █   █     █   █ █   █ █   █ █   █ █  ██",
+            "█   █  ███    █     █   █  ████ █   █ █   █ █   █"};
+    break;
+
+  case 'g': // No Ghost
+    width = 43;
+    text = {"█   █  ███     ████ █   █  ███   ████ █████",
+            "██  █ █   █   █     █   █ █   █ █       █  ",
+            "█ █ █ █   █   █  ██ █████ █   █  ███    █  ",
+            "█  ██ █   █   █   █ █   █ █   █     █   █  ",
+            "█   █  ███     ████ █   █  ███  ████    █  "};
+    break;
+
+  case 'f': // Pagman must reach all the cells
+    width = 37;
+    text = {"█   █  ███    ████   ███  █████ █   █",
+            "██  █ █   █   █   █ █   █   █   █   █",
+            "█ █ █ █   █   ████  █████   █   █████",
+            "█  ██ █   █   █     █   █   █   █   █",
+            "█   █  ███    █     █   █   █   █   █"};
+    subtitle = "Pagman must reach all the cells";
+    break;
   }
-  if (2 == stats.selected) {
-    attron(COLOR_PAIR(5));
-    mvprintw(5, 2, "Back");
-    attroff(COLOR_PAIR(5));
-  } else {
-    attron(COLOR_PAIR(4));
-    mvprintw(5, 2, "Back");
-    attroff(COLOR_PAIR(4));
+
+  int starti = (maxi - static_cast<int>(text.size())) / 2;
+  int startj = (maxj - width) / 2;
+
+  for (size_t i = 0; i < text.size(); i++) {
+    mvprintw(starti + i, startj, "%s", text[i].c_str());
   }
+
+  if (!subtitle.empty()) {
+    int sub_j = (maxj - static_cast<int>(subtitle.length())) / 2;
+    mvprintw(starti + text.size() + 1, sub_j, "%s", subtitle.c_str());
+  }
+
+  attroff(COLOR_PAIR(7));
   refresh();
 }
 
@@ -188,7 +298,7 @@ void Frontend::render(bool win, int score) {
       mvprintw(starti + i, startj, "%s", text[i].c_str());
     mvprintw(starti + 5, (maxj - 7 - to_string(score).size()) / 2, "Score: %s",
              to_string(score).c_str());
-    attroff(COLOR_PAIR(6));
+    attroff(COLOR_PAIR(7));
   }
 
   refresh();
