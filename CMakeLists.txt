@@ -5,8 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(UI "tui" CACHE STRING "Фронтенд: tui или gl")
-set_property(CACHE UI PROPERTY STRINGS tui gl)
+set(UI "tui" CACHE STRING "Фронтенд: tui или ray")
+set_property(CACHE UI PROPERTY STRINGS tui ray)
 
 add_executable(app_${UI} main.cpp ${UI}_front.cpp)
 
@@ -29,14 +29,24 @@ if(UI STREQUAL "tui")
     target_include_directories(app_tui PRIVATE ${CURSES_INCLUDE_DIRS})
     target_link_libraries(app_tui PRIVATE ${CURSES_LIBRARIES})
   endif()
-elseif(UI STREQUAL "gl")
-  find_package(glfw3 REQUIRED)
-  find_package(OpenGL REQUIRED)
-  target_link_libraries(app_gl PRIVATE glfw OpenGL::GL)
+elseif(UI STREQUAL "ray")
+  find_package(raylib QUIET)
+  if(NOT raylib_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+      raylib
+      GIT_REPOSITORY https://github.com/raysan5/raylib.git
+      GIT_TAG 5.5
+      GIT_SHALLOW TRUE
+    )
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(raylib)
+  endif()
+  target_link_libraries(app_ray PRIVATE raylib)
   if(APPLE)
-    target_compile_definitions(app_gl PRIVATE GL_SILENCE_DEPRECATION)
+    target_link_libraries(app_ray PRIVATE "-framework IOKit" "-framework Cocoa" "-framework OpenGL")
   endif()
 
 else()
-  message(FATAL_ERROR "Неизвестный UI '${UI}'. Допустимо: tui, gl")
+  message(FATAL_ERROR "Неизвестный UI '${UI}'. Допустимо: tui, ray")
 endif()
